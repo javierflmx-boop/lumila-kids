@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>LUMILA — Daily Missions</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+</head>
+<body style="margin:0;padding:0;background:#FFF8F0;">
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const STORAGE_KEY = "lumila-app-data";
+
+const BASE_TASKS = [
+  { id:"seatbelt", label:"Seat Belt",   icon:"🔒", earns:1.00, special:true },
+  { id:"homework", label:"Homework",    icon:"📚", earns:0 },
+  { id:"bed",      label:"Made Bed",    icon:"🛏️",  earns:0 },
+  { id:"teeth",    label:"Brush Teeth", icon:"🦷", earns:0 },
+  { id:"shower",   label:"Shower",      icon:"🚿", earns:0 },
+  { id:"room",     label:"Clean Room",  icon:"🧹", earns:0 },
+];
+
+const EXTRA_TASKS = [
+  { id:"dishes",    label:"Wash Dishes",       icon:"🍽️", hint:"Great starter chore" },
+  { id:"table",     label:"Set the Table",     icon:"🍴", hint:"Before every dinner" },
+  { id:"pets",      label:"Feed the Pets",     icon:"🐾", hint:"Every morning" },
+  { id:"plants",    label:"Water Plants",      icon:"🌱", hint:"3x a week" },
+  { id:"trash",     label:"Take Out Trash",    icon:"🗑️", hint:"When it's full" },
+  { id:"vacuum",    label:"Vacuum",            icon:"🧽", hint:"Once a week" },
+  { id:"dog",       label:"Bath the Dog",      icon:"🐕", hint:"When needed" },
+  { id:"laundry",   label:"Do Laundry",        icon:"👕", hint:"Older kids" },
+  { id:"cooking",   label:"Help Cook",         icon:"👩‍🍳", hint:"Supervised" },
+  { id:"groceries", label:"Pack Groceries",    icon:"🛒", hint:"After shopping" },
+  { id:"mop",       label:"Mop the Floor",     icon:"🪣", hint:"Older kids" },
+  { id:"windows",   label:"Clean Windows",     icon:"🪟", hint:"Monthly" },
+  { id:"lunch",     label:"Pack School Lunch", icon:"🥪", hint:"Night before" },
+  { id:"backpack",  label:"Pack Backpack",     icon:"🎒", hint:"Night before school" },
+  { id:"exercise",  label:"Exercise / Walk",   icon:"🏃", hint:"Stay active" },
+  { id:"reading",   label:"Read 20 min",       icon:"📖", hint:"Before bed" },
+];
+
+const GIRLS = [
+  { id:"luna", name:"Luna", color:"#7C5CFC", light:"#EDE8FF", emoji:"🌙" },
+  { id:"mila", name:"Mila", color:"#FF6B6B", light:"#FFE8E8", emoji:"⭐" },
+];
+
+const BONUS_AMOUNT = 20;
+const WEEK_DAYS = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+const CONFETTI_COLORS = ["#FF6B6B","#FFD700","#7C5CFC","#4CAF50","#00BCD4","#FF9800","#E91E63","#00E5FF","#76FF03","#FF1744","#651FFF","#FFEA00","#1DE9B6","#FF6D00"];
+const CONFETTI_SHAPES = ["■","●","▲","★","◆"];
+const CONFETTI_PIECES = Array.from({length:80},(_,i)=>({
+  id:i, left:Math.random()*100,
+  shape:CONFETTI_SHAPES[Math.floor(Math.random()*CONFETTI_SHAPES.length)],
+  color:CONFETTI_COLORS[Math.floor(Math.random()*CONFETTI_COLORS.length)],
+  size:10+Math.random()*18, duration:1.2+Math.random()*2, delay:Math.random()*0.8,
+  drift:(Math.random()-0.5)*120, spin:Math.random()>0.5?360:-360,
+}));
+const FIREWORK_BURSTS = Array.from({length:6},(_,i)=>({
+  id:i, x:10+(i%3)*35+Math.random()*15, y:10+Math.floor(i/3)*40+Math.random()*15,
+  color:CONFETTI_COLORS[Math.floor(Math.random()*CONFETTI_COLORS.length)], delay:i*0.15,
+}));
+
+function getTodayKey(){ return new Date().toISOString().split("T")[0]; }
+function getWeekKey(dateStr){
+  const d=new Date((dateStr||getTodayKey())+"T12:00:00");
+  const m=new Date(d); m.setDate(d.getDate()-((d.getDay()+6)%7));
+  return m.toISOString().split("T")[0];
+}
+function getWeekDays(weekKey){
+  const m=new Date(weekKey+"T12:00:00");
+  return Array.from({length:7},(_,i)=>{ const d=new Date(m); d.setDate(m.getDate()+i); return d.toISOString().split("T")[0]; });
+}
+function formatDate(dateStr){
+  return new Date(dateStr+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+}
+function formatWeekRange(weekKey){
+  const days=getWeekDays(weekKey);
+  const fmt=d=>new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"});
+  return `${fmt(days[0])} – ${fmt(days[6])}`;
+}
+function getWeekScore(girlData,weekKey,tasks){
+  const today=getTodayKey();
+  const pastDays=getWeekDays(weekKey).filter(d=>d<=today);
+  if(!pastDays.length) return {pct:0};
+  let done=0,total=0;
+  pastDays.forEach(d=>{ const dd=girlData?.[d]||{}; tasks.forEach(t=>{ total++; if(dd[t.id]) done++; }); });
+  return {pct:total?Math.round((done/total)*100):0};
+}
+function getStars(pct){ if(pct>=90)return 5; if(pct>=75)return 4; if(pct>=60)return 3; if(pct>=40)return 2; if(pct>=20)return 1; return 0; }
+
+function loadData(){
+  try{ const s=localStorage.getItem(STORAGE_KEY); if(s) return JSON.parse(s); } catch{}
+  return {luna:{},mila:{},bonuses:[],unlocked:{luna:[],mila:[]},customTasks:[]};
+}
+function saveData(d){ try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(d)); }catch{} }
+
+function PerfectDayCelebration({girl,onDone}){
+  const [phase,setPhase]=useState("in");
+  useEffect(()=>{
+    const t1=setTimeout(()=>setPhase("hold"),300);
+    const t2=setTimeout(()=>setPhase("out"),3800);
+    const t3=setTimeout(()=>onDone(),4400);
+    return ()=>{ clearTimeout(t1);clearTimeout(t2);clearTimeout(t3); };
+  },[]);
+  return (
+    <div onClick={onDone} style={{position:"fixed",inset:0,zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",flexDirection:"column",background:phase==="out"?"rgba(0,0,0,0)":"rgba(10,5,30,0.92)",transition:"background 0.5s ease",cursor:"pointer",overflow:"hidden"}}>
+      <style>{`
+        @keyframes cFall{0%{transform:translateY(var(--sy)) translateX(0) rotate(0);opacity:1}80%{opacity:1}100%{transform:translateY(110vh) translateX(var(--dr)) rotate(var(--sp));opacity:0}}
+        @keyframes fBurst{0%{transform:scale(0);opacity:1}60%{transform:scale(1.2);opacity:1}100%{transform:scale(2);opacity:0}}
+        @keyframes heroIn{0%{transform:scale(0.2) rotate(-10deg);opacity:0}60%{transform:scale(1.15) rotate(3deg);opacity:1}80%{transform:scale(0.95)}100%{transform:scale(1);opacity:1}}
+        @keyframes eFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+        @keyframes sTxt{0%,100%{filter:brightness(1)}50%{filter:brightness(1.4)}}
+        @keyframes rSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+        @keyframes sPop{0%{transform:scale(0);opacity:0}50%{transform:scale(1.3);opacity:1}100%{transform:scale(1);opacity:1}}
+        @keyframes fOut{to{opacity:0;transform:scale(0.9)}}
+      `}</style>
+      {CONFETTI_PIECES.map(p=>(
+        <div key={p.id} style={{position:"absolute",left:`${p.left}%`,top:0,fontSize:p.size,color:p.color,"--sy":`${-10-Math.random()*30}px`,"--dr":`${p.drift}px`,"--sp":`${p.spin}deg`,animation:`cFall ${p.duration}s ease-in forwards`,animationDelay:`${p.delay}s`,pointerEvents:"none",zIndex:1001,filter:`drop-shadow(0 0 4px ${p.color})`}}>{p.shape}</div>
+      ))}
+      {FIREWORK_BURSTS.map(f=>(
+        <div key={f.id} style={{position:"absolute",left:`${f.x}%`,top:`${f.y}%`,width:80,height:80,borderRadius:"50%",background:`radial-gradient(circle,${f.color} 0%,transparent 70%)`,animation:`fBurst 0.9s ease-out forwards`,animationDelay:`${f.delay}s`,pointerEvents:"none",zIndex:1001}}/>
+      ))}
+      <div style={{position:"absolute",width:300,height:300,borderRadius:"50%",opacity:0.15,background:`conic-gradient(${CONFETTI_COLORS.join(",")})`,animation:"rSpin 4s linear infinite",zIndex:1001}}/>
+      <div style={{position:"relative",zIndex:1002,textAlign:"center",animation:phase==="out"?"fOut 0.5s forwards":"heroIn 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards"}}>
+        <div style={{fontSize:96,animation:"eFloat 2s ease-in-out infinite",display:"block",filter:`drop-shadow(0 0 20px ${girl.color})`,marginBottom:8}}>{girl.emoji}</div>
+        <div style={{fontFamily:"'Fredoka One',cursive",fontSize:48,background:"linear-gradient(135deg,#FFD700,#FF6B6B,#7C5CFC,#00E5FF)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",lineHeight:1,marginBottom:6,animation:"sTxt 1.5s ease-in-out infinite"}}>PERFECT DAY!</div>
+        <div style={{fontFamily:"'Fredoka One',cursive",fontSize:32,color:girl.color,marginBottom:12,filter:`drop-shadow(0 0 12px ${girl.color})`}}>{girl.name} 🎉</div>
+        <div style={{display:"flex",justifyContent:"center",gap:6,marginBottom:20}}>
+          {[0,1,2,3,4].map(i=><div key={i} style={{fontSize:28,animation:`sPop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards`,animationDelay:`${0.3+i*0.08}s`,opacity:0}}>⭐</div>)}
+        </div>
+        <div style={{color:"rgba(255,255,255,0.4)",fontSize:12,fontWeight:700,letterSpacing:1}}>TAP ANYWHERE TO CLOSE</div>
+      </div>
+    </div>
+  );
+}
+
+function CoinBurst({active}){
+  if(!active) return null;
+  return (
+    <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:999}}>
+      {[...Array(24)].map((_,i)=>(
+        <div key={i} style={{position:"absolute",left:`${15+Math.random()*70}%`,top:`${10+Math.random()*50}%`,fontSize:`${18+Math.random()*20}px`,animation:`coinFall ${0.8+Math.random()*0.8}s ease-out forwards`,animationDelay:`${Math.random()*0.3}s`}}>{Math.random()>0.5?"💰":"⭐"}</div>
+      ))}
+    </div>
+  );
+}
+
+function App(){
+  const [data,setData]=useState(loadData);
+  const [view,setView]=useState("today");
+  const [burst,setBurst]=useState(false);
+  const [celebrate,setCelebrate]=useState(null);
+  const [bonusConfirm,setBonusConfirm]=useState(null);
+  const [unlockConfirm,setUnlockConfirm]=useState(null);
+  const [showAddTask,setShowAddTask]=useState(false);
+  const [newTask,setNewTask]=useState({label:"",icon:"⭐",hint:""});
+  const celebratedToday=useRef({});
+  const today=getTodayKey();
+  const currentWeek=getWeekKey(today);
+
+  useEffect(()=>{ saveData(data);
+    GIRLS.forEach(girl=>{
+      const tasks=getTasksForGirl(girl.id);
+      const dayData=data[girl.id]?.[today]||{};
+      const allDone=tasks.length>0&&tasks.every(t=>dayData[t.id]);
+      if(allDone&&!celebratedToday.current[girl.id]){ celebratedToday.current[girl.id]=true; setCelebrate(girl); }
+      if(!allDone) celebratedToday.current[girl.id]=false;
+    });
+  },[data]);
+
+  function getTasksForGirl(girlId){
+    const unlocked=data.unlocked?.[girlId]||[];
+    const allExtras=[...EXTRA_TASKS,...(data.customTasks||[])];
+    return [...BASE_TASKS,...allExtras.filter(t=>unlocked.includes(t.id))];
+  }
+  function toggleTask(girlId,taskId){
+    const wasOn=data[girlId]?.[today]?.[taskId];
+    const task=getTasksForGirl(girlId).find(t=>t.id===taskId);
+    if(!wasOn&&task?.special){ setBurst(true); setTimeout(()=>setBurst(false),1500); }
+    setData(prev=>({...prev,[girlId]:{...prev[girlId],[today]:{...prev[girlId]?.[today],[taskId]:!wasOn}}}));
+  }
+  function unlockTask(girlId,taskId){
+    setUnlockConfirm(null);
+    setData(prev=>{ const cur=prev.unlocked?.[girlId]||[]; const next=cur.includes(taskId)?cur.filter(id=>id!==taskId):[...cur,taskId]; return {...prev,unlocked:{...prev.unlocked,[girlId]:next}}; });
+  }
+  function isUnlocked(girlId,taskId){ return (data.unlocked?.[girlId]||[]).includes(taskId); }
+  function addCustomTask(){
+    if(!newTask.label.trim()) return;
+    const id="custom_"+Date.now();
+    setData(prev=>({...prev,customTasks:[...(prev.customTasks||[]),{id,label:newTask.label.trim(),icon:newTask.icon||"⭐",hint:newTask.hint.trim()}]}));
+    setNewTask({label:"",icon:"⭐",hint:""}); setShowAddTask(false);
+  }
+  function deleteCustomTask(taskId){
+    setData(prev=>({...prev,customTasks:(prev.customTasks||[]).filter(t=>t.id!==taskId),unlocked:{luna:(prev.unlocked?.luna||[]).filter(id=>id!==taskId),mila:(prev.unlocked?.mila||[]).filter(id=>id!==taskId)}}));
+  }
+  function getAllExtraTasks(){ return [...EXTRA_TASKS,...(data.customTasks||[])]; }
+  function hasBonus(girlId,weekKey){ return (data.bonuses||[]).some(b=>b.girlId===girlId&&b.weekKey===weekKey); }
+  function awardBonus(girlId,weekKey){
+    setBurst(true); setTimeout(()=>setBurst(false),2000); setBonusConfirm(null);
+    setData(prev=>({...prev,bonuses:[...(prev.bonuses||[]),{girlId,weekKey,amount:BONUS_AMOUNT,awardedOn:today}]}));
+  }
+  function getTotalEarned(girlId){
+    let total=0;
+    Object.values(data[girlId]||{}).forEach(day=>BASE_TASKS.forEach(t=>{ if(t.earns>0&&day[t.id]) total+=t.earns; }));
+    (data.bonuses||[]).filter(b=>b.girlId===girlId).forEach(b=>{ total+=b.amount; });
+    return total;
+  }
+  function getHistoryDays(girlId){ return Object.entries(data[girlId]||{}).sort(([a],[b])=>b.localeCompare(a)).slice(0,14); }
+  function getAllWeeks(){ const s=new Set([currentWeek]); GIRLS.forEach(g=>Object.keys(data[g.id]||{}).forEach(d=>s.add(getWeekKey(d)))); return [...s].sort((a,b)=>b.localeCompare(a)); }
+
+  const allWeeks=getAllWeeks();
+
+  return (
+    <div style={{minHeight:"100vh",background:"linear-gradient(160deg,#FFF8F0 0%,#F0EAFF 100%)",fontFamily:"'Nunito',sans-serif",paddingBottom:80}}>
+      <style>{`
+        @keyframes coinFall{0%{transform:translateY(-20px) scale(0.5) rotate(0);opacity:1}100%{transform:translateY(80px) scale(1.2) rotate(360deg);opacity:0}}
+        @keyframes popIn{0%{transform:scale(0.85);opacity:0}70%{transform:scale(1.05)}100%{transform:scale(1);opacity:1}}
+        @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+        @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+        @keyframes perfectGlow{0%,100%{box-shadow:0 0 20px rgba(255,215,0,.4),0 4px 20px rgba(0,0,0,.07)}50%{box-shadow:0 0 40px rgba(255,215,0,.8),0 4px 20px rgba(0,0,0,.07)}}
+        @keyframes rainbowBorder{0%{border-color:#FF6B6B}16%{border-color:#FFD700}33%{border-color:#7C5CFC}50%{border-color:#4CAF50}66%{border-color:#00E5FF}83%{border-color:#FF9800}100%{border-color:#FF6B6B}}
+        .task-btn{transition:all .15s ease;cursor:pointer} .task-btn:active{transform:scale(.95)}
+        .nav-btn{transition:all .2s;cursor:pointer;border:none}
+        .bonus-btn{transition:all .2s;cursor:pointer} .bonus-btn:active{transform:scale(.96)}
+        .overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+        .perfect-card{animation:perfectGlow 1.5s ease-in-out infinite,rainbowBorder 2s linear infinite !important;border-width:2.5px !important}
+      `}</style>
+
+      {celebrate&&<PerfectDayCelebration girl={celebrate} onDone={()=>setCelebrate(null)}/>}
+      <CoinBurst active={burst}/>
+
+      {/* Bonus modal */}
+      {bonusConfirm&&(
+        <div className="overlay" onClick={()=>setBonusConfirm(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:28,padding:"32px 24px",textAlign:"center",maxWidth:320,width:"100%",animation:"popIn .25s ease",boxShadow:"0 20px 60px rgba(0,0,0,.2)"}}>
+            <div style={{fontSize:52,marginBottom:12}}>🏆</div>
+            <div style={{fontFamily:"'Fredoka One'",fontSize:24,color:"#333",marginBottom:6}}>Good Week, {GIRLS.find(g=>g.id===bonusConfirm.girlId)?.name}!</div>
+            <div style={{color:"#999",fontSize:14,marginBottom:8}}>{formatWeekRange(bonusConfirm.weekKey)}</div>
+            <div style={{fontFamily:"'Fredoka One'",fontSize:48,color:"#4CAF50",marginBottom:4}}>+${BONUS_AMOUNT}</div>
+            <div style={{color:"#bbb",fontSize:12,marginBottom:24}}>Weekly bonus</div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setBonusConfirm(null)} style={{flex:1,padding:12,borderRadius:14,border:"2px solid #eee",background:"white",fontFamily:"'Nunito'",fontWeight:800,fontSize:14,color:"#bbb",cursor:"pointer"}}>Cancel</button>
+              <button onClick={()=>awardBonus(bonusConfirm.girlId,bonusConfirm.weekKey)} style={{flex:2,padding:12,borderRadius:14,border:"none",background:"linear-gradient(135deg,#4CAF50,#2E7D32)",fontFamily:"'Nunito'",fontWeight:800,fontSize:14,color:"white",cursor:"pointer"}}>Award ${BONUS_AMOUNT} ✓</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unlock modal */}
+      {unlockConfirm&&(
+        <div className="overlay" onClick={()=>setUnlockConfirm(null)}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:28,padding:"28px 24px",textAlign:"center",maxWidth:320,width:"100%",animation:"popIn .25s ease",boxShadow:"0 20px 60px rgba(0,0,0,.2)"}}>
+            {(()=>{
+              const girl=GIRLS.find(g=>g.id===unlockConfirm.girlId);
+              const task=getAllExtraTasks().find(t=>t.id===unlockConfirm.taskId);
+              const on=isUnlocked(unlockConfirm.girlId,unlockConfirm.taskId);
+              return (<>
+                <div style={{fontSize:48,marginBottom:10}}>{on?"🔒":task?.icon}</div>
+                <div style={{fontFamily:"'Fredoka One'",fontSize:22,color:girl?.color,marginBottom:4}}>{on?"Remove task?":"Unlock task?"}</div>
+                <div style={{fontFamily:"'Fredoka One'",fontSize:18,color:"#333",marginBottom:4}}>{task?.label}</div>
+                <div style={{color:"#bbb",fontSize:13,marginBottom:6}}>for {girl?.name} {girl?.emoji}</div>
+                {!on&&task?.hint&&<div style={{background:"#F8F8F8",borderRadius:10,padding:"8px 12px",fontSize:12,color:"#999",marginBottom:16}}>{task.hint}</div>}
+                <div style={{display:"flex",gap:10,marginTop:16}}>
+                  <button onClick={()=>setUnlockConfirm(null)} style={{flex:1,padding:12,borderRadius:14,border:"2px solid #eee",background:"white",fontFamily:"'Nunito'",fontWeight:800,fontSize:14,color:"#bbb",cursor:"pointer"}}>Cancel</button>
+                  <button onClick={()=>unlockTask(unlockConfirm.girlId,unlockConfirm.taskId)} style={{flex:2,padding:12,borderRadius:14,border:"none",background:on?"linear-gradient(135deg,#EF5350,#B71C1C)":`linear-gradient(135deg,${girl?.color},${girl?.color}cc)`,fontFamily:"'Nunito'",fontWeight:800,fontSize:14,color:"white",cursor:"pointer"}}>{on?"Remove ✕":"Unlock ✓"}</button>
+                </div>
+              </>);
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Add task modal */}
+      {showAddTask&&(
+        <div className="overlay" onClick={()=>setShowAddTask(false)}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:28,padding:"28px 22px",maxWidth:340,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.25)",animation:"popIn .25s ease"}}>
+            <div style={{fontFamily:"'Fredoka One'",fontSize:22,color:"#333",marginBottom:20,textAlign:"center"}}>✏️ Add Custom Task</div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,fontWeight:800,color:"#bbb",letterSpacing:1,marginBottom:8}}>PICK AN ICON</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+                {["🧺","🚗","🐈","🐟","🌻","🍕","🎸","⚽","🎨","🧸","🛁","🪴","💊","📱","🧩","🎯","🛵","🏠","💡","🔧"].map(em=>(
+                  <div key={em} onClick={()=>setNewTask(p=>({...p,icon:em}))} style={{width:38,height:38,borderRadius:10,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,background:newTask.icon===em?"#7C5CFC":"#F5F5F5",transition:"all .15s"}}>{em}</div>
+                ))}
+              </div>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:11,fontWeight:800,color:"#bbb",letterSpacing:1,marginBottom:6}}>TASK NAME</div>
+              <input value={newTask.label} onChange={e=>setNewTask(p=>({...p,label:e.target.value}))} placeholder="e.g. Walk the dog" maxLength={30} style={{width:"100%",padding:"10px 14px",borderRadius:12,border:"2px solid #EEE",fontFamily:"'Nunito'",fontSize:15,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{marginBottom:22}}>
+              <div style={{fontSize:11,fontWeight:800,color:"#bbb",letterSpacing:1,marginBottom:6}}>HINT (optional)</div>
+              <input value={newTask.hint} onChange={e=>setNewTask(p=>({...p,hint:e.target.value}))} placeholder="e.g. Every morning" maxLength={40} style={{width:"100%",padding:"10px 14px",borderRadius:12,border:"2px solid #EEE",fontFamily:"'Nunito'",fontSize:14,outline:"none",boxSizing:"border-box"}}/>
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setShowAddTask(false)} style={{flex:1,padding:12,borderRadius:14,border:"2px solid #eee",background:"white",fontFamily:"'Nunito'",fontWeight:800,fontSize:14,color:"#bbb",cursor:"pointer"}}>Cancel</button>
+              <button onClick={addCustomTask} style={{flex:2,padding:12,borderRadius:14,border:"none",background:newTask.label.trim()?"linear-gradient(135deg,#7C5CFC,#FF6B6B)":"#EEE",fontFamily:"'Nunito'",fontWeight:800,fontSize:14,color:newTask.label.trim()?"white":"#ccc",cursor:newTask.label.trim()?"pointer":"not-allowed"}}>Add Task ✓</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <div style={{background:"linear-gradient(135deg,#7C5CFC 0%,#FF6B6B 100%)",padding:"28px 20px 24px",textAlign:"center",boxShadow:"0 4px 20px rgba(124,92,252,.3)"}}>
+        <div style={{fontFamily:"'Fredoka One',cursive",fontSize:32,color:"white",letterSpacing:1}}>🌙 LUMILA ⭐</div>
+        <div style={{color:"rgba(255,255,255,.85)",fontSize:13,fontWeight:700,letterSpacing:2,marginTop:2}}>DAILY MISSIONS</div>
+      </div>
+
+      {/* Nav */}
+      <div style={{display:"flex",gap:6,padding:"14px 12px",justifyContent:"center",flexWrap:"wrap"}}>
+        {[{id:"today",label:"Today"},{id:"week",label:"Week 🏆"},{id:"wallet",label:"Wallet 💰"},{id:"history",label:"History"},{id:"manage",label:"Tasks 🔐"}].map(tab=>(
+          <button key={tab.id} className="nav-btn" onClick={()=>setView(tab.id)} style={{padding:"8px 14px",borderRadius:20,fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:13,background:view===tab.id?"#7C5CFC":"white",color:view===tab.id?"white":"#999",boxShadow:view===tab.id?"0 4px 12px rgba(124,92,252,.4)":"0 2px 8px rgba(0,0,0,.06)"}}>{tab.label}</button>
+        ))}
+      </div>
+
+      <div style={{padding:"0 16px"}}>
+
+        {/* TODAY */}
+        {view==="today"&&(
+          <div>
+            <div style={{textAlign:"center",color:"#aaa",fontSize:12,fontWeight:700,letterSpacing:1,marginBottom:16}}>{formatDate(today).toUpperCase()}</div>
+            {GIRLS.map(girl=>{
+              const tasks=getTasksForGirl(girl.id);
+              const dayData=data[girl.id]?.[today]||{};
+              const doneCount=tasks.filter(t=>dayData[t.id]).length;
+              const perfect=tasks.length>0&&doneCount===tasks.length;
+              return (
+                <div key={girl.id} className={perfect?"perfect-card":""} style={{background:perfect?"linear-gradient(135deg,#fffef0,#fff8e0)":"white",borderRadius:24,padding:"20px",marginBottom:16,boxShadow:"0 4px 20px rgba(0,0,0,.07)",border:`2px solid ${girl.light}`,animation:"popIn .3s ease",position:"relative",overflow:"hidden"}}>
+                  {perfect&&<div style={{position:"absolute",top:0,left:0,right:0,height:4,background:"linear-gradient(90deg,#FF6B6B,#FFD700,#7C5CFC,#4CAF50,#00E5FF,#FF6B6B)"}}/>}
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{width:44,height:44,borderRadius:14,background:girl.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,boxShadow:`0 4px 12px ${girl.color}55`}}>{girl.emoji}</div>
+                      <div>
+                        <div style={{fontFamily:"'Fredoka One'",fontSize:22,color:girl.color,lineHeight:1}}>{girl.name}</div>
+                        <div style={{fontSize:11,color:perfect?"#C8860A":"#bbb",fontWeight:700}}>{perfect?"✨ PERFECT DAY!":`${doneCount}/${tasks.length} done`}</div>
+                      </div>
+                    </div>
+                    <div style={{background:perfect?"linear-gradient(135deg,#FFD700,#FF9800)":girl.light,borderRadius:12,padding:"6px 12px",fontFamily:"'Fredoka One'",fontSize:18,color:perfect?"white":girl.color,boxShadow:perfect?"0 3px 10px rgba(255,215,0,.5)":"none"}}>${getTotalEarned(girl.id).toFixed(0)}</div>
+                  </div>
+                  <div style={{background:girl.light,borderRadius:8,height:8,marginBottom:16,overflow:"hidden"}}>
+                    <div style={{height:"100%",width:`${tasks.length?(doneCount/tasks.length)*100:0}%`,background:perfect?"linear-gradient(90deg,#FF6B6B,#FFD700,#7C5CFC,#4CAF50)":girl.color,borderRadius:8,transition:"width .4s ease"}}/>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {tasks.map(task=>{ const done=!!dayData[task.id]; return (
+                      <div key={task.id} className="task-btn" onClick={()=>toggleTask(girl.id,task.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 14px",borderRadius:14,background:done?(task.special?"#FFF5D6":girl.light):"#F8F8F8",border:`2px solid ${done?(task.special?"#FFD700":girl.color+"44"):"transparent"}`,boxShadow:task.special&&done?"0 2px 12px rgba(255,215,0,.4)":"none"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <span style={{fontSize:20}}>{task.icon}</span>
+                          <span style={{fontWeight:700,fontSize:14,color:done?"#333":"#aaa"}}>{task.label}</span>
+                          {task.special&&<span style={{background:"#FFD700",color:"#7A5000",fontSize:10,fontWeight:800,padding:"2px 6px",borderRadius:6}}>$1</span>}
+                        </div>
+                        <div style={{width:26,height:26,borderRadius:8,background:done?(task.special?"#FFD700":girl.color):"#E8E8E8",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,transition:"all .2s",boxShadow:done?`0 2px 8px ${task.special?"#FFD70066":girl.color+"55"}`:"none"}}>{done?"✓":""}</div>
+                      </div>
+                    ); })}
+                  </div>
+                  {perfect&&<div style={{marginTop:14,textAlign:"center",padding:"10px",borderRadius:14,background:"linear-gradient(135deg,#FFF5D6,#FFE0A0)",border:"1.5px solid #FFD700"}}><span style={{fontSize:22}}>🏆</span><span style={{fontFamily:"'Fredoka One'",fontSize:16,color:"#C8860A",marginLeft:8}}>All missions complete!</span></div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* WEEK */}
+        {view==="week"&&(
+          <div style={{animation:"slideUp .3s ease"}}>
+            {allWeeks.map((weekKey,wi)=>{
+              const isCW=weekKey===currentWeek;
+              const weekDays=getWeekDays(weekKey);
+              return (
+                <div key={weekKey} style={{marginBottom:24}}>
+                  <div style={{paddingLeft:4,marginBottom:10}}>
+                    <div style={{fontFamily:"'Fredoka One'",fontSize:15,color:isCW?"#7C5CFC":"#999"}}>{isCW?"THIS WEEK":`WEEK ${wi+1}`}</div>
+                    <div style={{fontSize:12,color:"#bbb",fontWeight:700}}>{formatWeekRange(weekKey)}</div>
+                  </div>
+                  {GIRLS.map(girl=>{
+                    const tasks=getTasksForGirl(girl.id);
+                    const {pct}=getWeekScore(data[girl.id],weekKey,tasks);
+                    const stars=getStars(pct);
+                    const bonused=hasBonus(girl.id,weekKey);
+                    const sbDays=weekDays.filter(d=>data[girl.id]?.[d]?.seatbelt).length;
+                    return (
+                      <div key={girl.id} style={{background:"white",borderRadius:22,padding:"18px",marginBottom:12,boxShadow:"0 4px 16px rgba(0,0,0,.06)",border:bonused?"2px solid #4CAF50":`2px solid ${girl.light}`}}>
+                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14}}>
+                          <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <div style={{width:40,height:40,borderRadius:12,background:girl.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,boxShadow:`0 3px 10px ${girl.color}44`}}>{girl.emoji}</div>
+                            <div>
+                              <div style={{fontFamily:"'Fredoka One'",fontSize:19,color:girl.color}}>{girl.name}</div>
+                              <div style={{fontSize:12,color:"#bbb",fontWeight:700}}>{"★".repeat(stars)}{"☆".repeat(5-stars)} {pct}%</div>
+                            </div>
+                          </div>
+                          {bonused?<div style={{background:"#E8F5E9",border:"1.5px solid #4CAF50",borderRadius:10,padding:"5px 10px",fontFamily:"'Fredoka One'",fontSize:14,color:"#2E7D32"}}>+${BONUS_AMOUNT} ✓</div>
+                          :isCW?<button className="bonus-btn" onClick={()=>setBonusConfirm({girlId:girl.id,weekKey})} style={{background:stars>=3?"linear-gradient(135deg,#4CAF50,#2E7D32)":"#F0F0F0",border:"none",borderRadius:10,padding:"8px 12px",fontFamily:"'Nunito'",fontWeight:800,fontSize:12,color:stars>=3?"white":"#ccc",cursor:stars>=3?"pointer":"not-allowed",animation:stars>=3?"pulse 2s infinite":"none"}}>{stars>=3?`Award $${BONUS_AMOUNT}`:"Keep going..."}</button>:null}
+                        </div>
+                        <div style={{display:"flex",gap:5,marginBottom:12}}>
+                          {weekDays.map(d=>{
+                            const dd=data[girl.id]?.[d]||{};
+                            const dn=tasks.filter(t=>dd[t.id]).length;
+                            const isFut=d>today,isTod=d===today;
+                            const pD=tasks.length?dn/tasks.length:0;
+                            const perf=tasks.length>0&&dn===tasks.length;
+                            return (<div key={d} style={{flex:1,textAlign:"center"}}>
+                              <div style={{fontSize:9,color:isTod?girl.color:"#ccc",fontWeight:800,marginBottom:3}}>{WEEK_DAYS[new Date(d+"T12:00:00").getDay()]}</div>
+                              <div style={{height:36,borderRadius:8,background:isFut?"#F5F5F5":perf?"linear-gradient(135deg,#FFD700,#FF9800)":pD===0?"#FFEBEE":pD<0.5?girl.light:pD<1?girl.color+"88":girl.color,border:isTod?`2px solid ${girl.color}`:"2px solid transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:perf?16:13}}>
+                                {isFut?"":perf?"🏆":pD===0?"✗":pD===1?"✓":dn}
+                              </div>
+                            </div>);
+                          })}
+                        </div>
+                        <div style={{display:"flex",gap:8}}>
+                          <div style={{flex:1,background:"#FFF5D6",borderRadius:10,padding:"8px",textAlign:"center"}}><div style={{fontFamily:"'Fredoka One'",fontSize:18,color:"#C8860A"}}>{sbDays}</div><div style={{fontSize:10,fontWeight:700,color:"#bbb"}}>🔒 DAYS</div></div>
+                          <div style={{flex:1,background:girl.light,borderRadius:10,padding:"8px",textAlign:"center"}}><div style={{fontFamily:"'Fredoka One'",fontSize:18,color:girl.color}}>{pct}%</div><div style={{fontSize:10,fontWeight:700,color:"#bbb"}}>TASKS</div></div>
+                          <div style={{flex:1,background:bonused?"#E8F5E9":"#F5F5F5",borderRadius:10,padding:"8px",textAlign:"center"}}><div style={{fontFamily:"'Fredoka One'",fontSize:18,color:bonused?"#2E7D32":"#ccc"}}>{bonused?`$${BONUS_AMOUNT}`:"—"}</div><div style={{fontSize:10,fontWeight:700,color:"#bbb"}}>BONUS</div></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* WALLET */}
+        {view==="wallet"&&(
+          <div>
+            {GIRLS.map(girl=>{
+              const total=getTotalEarned(girl.id);
+              const sbDays=Object.values(data[girl.id]||{}).filter(d=>d.seatbelt).length;
+              const bonusTotal=(data.bonuses||[]).filter(b=>b.girlId===girl.id).reduce((s,b)=>s+b.amount,0);
+              return (
+                <div key={girl.id} style={{background:"white",borderRadius:24,padding:"24px",marginBottom:16,boxShadow:"0 4px 20px rgba(0,0,0,.07)",overflow:"hidden",position:"relative"}}>
+                  <div style={{position:"absolute",right:-20,top:-20,width:120,height:120,borderRadius:"50%",background:girl.color+"11"}}/>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+                    <div style={{width:50,height:50,borderRadius:16,background:girl.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,boxShadow:`0 4px 14px ${girl.color}55`}}>{girl.emoji}</div>
+                    <div style={{fontFamily:"'Fredoka One'",fontSize:26,color:girl.color}}>{girl.name}</div>
+                  </div>
+                  <div style={{textAlign:"center",marginBottom:20}}>
+                    <div style={{color:"#bbb",fontSize:11,fontWeight:700,letterSpacing:1}}>TOTAL EARNED</div>
+                    <div style={{fontFamily:"'Fredoka One'",fontSize:64,color:girl.color,lineHeight:1.1}}>${total.toFixed(0)}</div>
+                  </div>
+                  <div style={{display:"flex",gap:10}}>
+                    <div style={{flex:1,background:"#FFF5D6",borderRadius:14,padding:"12px",textAlign:"center"}}><div style={{fontFamily:"'Fredoka One'",fontSize:22,color:"#C8860A"}}>${sbDays}</div><div style={{fontSize:11,fontWeight:700,color:"#bbb"}}>🔒 BELT</div></div>
+                    <div style={{flex:1,background:"#E8F5E9",borderRadius:14,padding:"12px",textAlign:"center"}}><div style={{fontFamily:"'Fredoka One'",fontSize:22,color:"#2E7D32"}}>${bonusTotal}</div><div style={{fontSize:11,fontWeight:700,color:"#bbb"}}>🏆 BONUS</div></div>
+                    <div style={{flex:1,background:girl.light,borderRadius:14,padding:"12px",textAlign:"center"}}><div style={{fontFamily:"'Fredoka One'",fontSize:22,color:girl.color}}>${total.toFixed(0)}</div><div style={{fontSize:11,fontWeight:700,color:"#bbb"}}>TOTAL</div></div>
+                  </div>
+                </div>
+              );
+            })}
+            <div style={{background:"linear-gradient(135deg,#7C5CFC,#FF6B6B)",borderRadius:24,padding:"20px",textAlign:"center",boxShadow:"0 8px 24px rgba(124,92,252,.3)"}}>
+              <div style={{color:"rgba(255,255,255,.7)",fontSize:11,fontWeight:700,letterSpacing:1}}>PAPA OWES TOTAL</div>
+              <div style={{fontFamily:"'Fredoka One'",fontSize:52,color:"white"}}>${(getTotalEarned("luna")+getTotalEarned("mila")).toFixed(0)}</div>
+              <div style={{color:"rgba(255,255,255,.7)",fontSize:12}}>💸 Pay up, Dad!</div>
+            </div>
+          </div>
+        )}
+
+        {/* HISTORY */}
+        {view==="history"&&(
+          <div>
+            {GIRLS.map(girl=>(
+              <div key={girl.id} style={{marginBottom:20}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                  <span style={{fontSize:20}}>{girl.emoji}</span>
+                  <span style={{fontFamily:"'Fredoka One'",fontSize:20,color:girl.color}}>{girl.name}</span>
+                </div>
+                {getHistoryDays(girl.id).length===0?<div style={{color:"#ccc",fontSize:13,textAlign:"center",padding:20}}>No history yet</div>:(
+                  getHistoryDays(girl.id).map(([date,dayData])=>{
+                    const tasks=getTasksForGirl(girl.id);
+                    const done=tasks.filter(t=>dayData[t.id]);
+                    const earned=BASE_TASKS.filter(t=>t.earns>0&&dayData[t.id]).reduce((s,t)=>s+t.earns,0);
+                    const perfect=done.length===tasks.length&&tasks.length>0;
+                    return (
+                      <div key={date} style={{background:perfect?"linear-gradient(135deg,#fffef0,#fff8e0)":"white",borderRadius:16,padding:"12px 16px",marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between",boxShadow:perfect?"0 2px 14px rgba(255,215,0,.25)":"0 2px 10px rgba(0,0,0,.05)",border:perfect?"1.5px solid #FFD700":"1.5px solid transparent"}}>
+                        <div>
+                          <div style={{fontWeight:700,fontSize:13,color:"#333",display:"flex",alignItems:"center",gap:6}}>{date===today?"Today":formatDate(date)}{perfect&&<span style={{fontSize:14}}>🏆</span>}</div>
+                          <div style={{fontSize:18,marginTop:2}}>{done.map(t=>t.icon).join(" ")||"—"}</div>
+                        </div>
+                        {earned>0&&<div style={{background:"#FFF5D6",border:"1.5px solid #FFD700",borderRadius:10,padding:"4px 10px",fontFamily:"'Fredoka One'",fontSize:16,color:"#C8860A"}}>+${earned.toFixed(0)}</div>}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* MANAGE */}
+        {view==="manage"&&(
+          <div style={{animation:"slideUp .3s ease"}}>
+            <div style={{background:"linear-gradient(135deg,#1a1a2e,#16213e)",borderRadius:20,padding:"20px",marginBottom:20,textAlign:"center"}}>
+              <div style={{fontSize:36,marginBottom:6}}>🔐</div>
+              <div style={{fontFamily:"'Fredoka One'",fontSize:22,color:"white",marginBottom:4}}>Task Manager</div>
+              <div style={{color:"rgba(255,255,255,.5)",fontSize:12,fontWeight:700}}>PAPA UNLOCKS — KIDS EARN</div>
+            </div>
+            <div style={{display:"flex",gap:10,marginBottom:20}}>
+              {GIRLS.map(girl=>{ const tasks=getTasksForGirl(girl.id); const ec=(data.unlocked?.[girl.id]||[]).length; return (
+                <div key={girl.id} style={{flex:1,background:"white",borderRadius:16,padding:"14px",textAlign:"center",boxShadow:"0 2px 12px rgba(0,0,0,.06)",border:`2px solid ${girl.light}`}}>
+                  <div style={{fontSize:24,marginBottom:4}}>{girl.emoji}</div>
+                  <div style={{fontFamily:"'Fredoka One'",fontSize:18,color:girl.color}}>{girl.name}</div>
+                  <div style={{fontFamily:"'Fredoka One'",fontSize:28,color:girl.color,lineHeight:1}}>{tasks.length}</div>
+                  <div style={{fontSize:10,color:"#bbb",fontWeight:700}}>TASKS ACTIVE</div>
+                  {ec>0&&<div style={{marginTop:6,background:girl.light,borderRadius:8,padding:"3px 8px",fontSize:11,color:girl.color,fontWeight:800}}>{ec} unlocked</div>}
+                </div>
+              ); })}
+            </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,paddingLeft:4}}>
+              <div style={{fontFamily:"'Fredoka One'",fontSize:16,color:"#999"}}>TASK LIBRARY</div>
+              <button onClick={()=>setShowAddTask(true)} style={{background:"linear-gradient(135deg,#7C5CFC,#FF6B6B)",border:"none",borderRadius:12,padding:"8px 14px",fontFamily:"'Nunito'",fontWeight:800,fontSize:13,color:"white",cursor:"pointer",boxShadow:"0 3px 12px rgba(124,92,252,.35)"}}>+ Add Task</button>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+              {getAllExtraTasks().map(task=>{ const isC=task.id.startsWith("custom_"); return (
+                <div key={task.id} style={{background:"white",borderRadius:18,padding:"14px 16px",boxShadow:"0 2px 12px rgba(0,0,0,.05)",border:isC?"2px solid #EDE8FF":"2px solid #F5F5F5"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
+                      <div style={{width:42,height:42,borderRadius:12,background:isC?"#EDE8FF":"#F5F5F5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{task.icon}</div>
+                      <div style={{minWidth:0}}>
+                        <div style={{fontWeight:800,fontSize:14,color:"#333",display:"flex",alignItems:"center",gap:6}}>
+                          {task.label}
+                          {isC&&<span style={{fontSize:9,background:"#7C5CFC",color:"white",borderRadius:4,padding:"1px 5px",fontWeight:800}}>CUSTOM</span>}
+                        </div>
+                        <div style={{fontSize:11,color:"#bbb"}}>{task.hint}</div>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:6,alignItems:"center",flexShrink:0}}>
+                      {GIRLS.map(girl=>{ const on=isUnlocked(girl.id,task.id); return (
+                        <button key={girl.id} onClick={()=>setUnlockConfirm({girlId:girl.id,taskId:task.id})} style={{width:38,height:38,borderRadius:10,border:"none",cursor:"pointer",background:on?girl.color:"#F0F0F0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,transition:"all .2s",boxShadow:on?`0 3px 10px ${girl.color}55`:"none"}}>{on?girl.emoji:"🔒"}</button>
+                      ); })}
+                      {isC&&<button onClick={()=>deleteCustomTask(task.id)} style={{width:32,height:32,borderRadius:8,border:"none",cursor:"pointer",background:"#FFF0F0",color:"#FF6B6B",fontSize:14,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>}
+                    </div>
+                  </div>
+                </div>
+              ); })}
+            </div>
+            <div style={{background:"white",borderRadius:14,padding:"14px",boxShadow:"0 2px 10px rgba(0,0,0,.05)",marginBottom:16,textAlign:"center"}}>
+              <div style={{display:"flex",justifyContent:"center",gap:16,flexWrap:"wrap"}}>
+                {[["#7C5CFC","🌙","Luna"],["#FF6B6B","⭐","Mila"],["#F0F0F0","🔒","Locked"]].map(([bg,em,lbl])=>(
+                  <div key={lbl} style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#999",fontWeight:700}}>
+                    <div style={{width:28,height:28,borderRadius:8,background:bg,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>{em}</div>{lbl}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+      <div style={{height:20}}/>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
