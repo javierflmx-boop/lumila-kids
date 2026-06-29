@@ -508,7 +508,6 @@ function App(){
           </div>
           {/* Kid avatars + add */}
           <div style={{display:"flex",gap:6,alignItems:"center"}}>
-            <div className="kid-chip" onClick={()=>setView("manage")} style={{width:40,height:40,borderRadius:12,background:"rgba(255,255,255,.15)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,border:"2px solid rgba(255,255,255,.3)"}}>⚙️</div>
             {kids.map(k=>(
               <div key={k.id} className="kid-chip" onClick={()=>setKidForm(k)} style={{width:40,height:40,borderRadius:12,background:"rgba(255,255,255,.25)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,border:"2px solid rgba(255,255,255,.4)"}}>
                 {k.emoji}
@@ -523,7 +522,7 @@ function App(){
 
       {/* Nav */}
       <div style={{display:"flex",gap:6,padding:"12px 12px",justifyContent:"center",flexWrap:"wrap"}}>
-        {[{id:"today",label:"Today"},{id:"week",label:"Week 🏆"},{id:"wallet",label:"Wallet 💰"},{id:"history",label:"History"},{id:"manage",label:"⚙️ Settings"}].map(tab=>(
+        {[{id:"today",label:"Today"},{id:"week",label:"Week 🏆"},{id:"wallet",label:"Wallet 💰"},{id:"history",label:"History"}].map(tab=>(
           <button key={tab.id} className="nav-btn" onClick={()=>setView(tab.id)} style={{padding:"8px 14px",borderRadius:20,fontFamily:"'Nunito',sans-serif",fontWeight:800,fontSize:13,background:view===tab.id?"#7C5CFC":"white",color:view===tab.id?"white":"#999",boxShadow:view===tab.id?"0 4px 12px rgba(124,92,252,.4)":"0 2px 8px rgba(0,0,0,.06)"}}>{tab.label}</button>
         ))}
       </div>
@@ -552,7 +551,7 @@ function App(){
                 <button onClick={()=>setKidForm("new")} style={{background:"linear-gradient(135deg,#7C5CFC,#FF6B6B)",border:"none",borderRadius:18,padding:"16px 36px",fontFamily:"'Fredoka One'",fontSize:22,color:"white",cursor:"pointer",boxShadow:"0 6px 20px rgba(124,92,252,.4)"}}>
                   + Add Your First Kid
                 </button>
-                <div style={{color:"#ccc",fontSize:12,marginTop:14}}>You can add more kids anytime from ⚙️</div>
+                <div style={{color:"#ccc",fontSize:12,marginTop:14}}>You can add more kids anytime from the header</div>
               </div>
             )}
             {kids.map(kid=>{
@@ -695,168 +694,6 @@ function App(){
             ))}
           </div>
         )}
-
-        {/* MANAGE TASKS */}
-        {view==="manage"&&(
-          <div style={{animation:"slideUp .3s ease"}}>
-            {/* How to Use */}
-            <div onClick={()=>setShowVideo(true)} style={{background:"linear-gradient(135deg,#1a1a2e,#16213e)",borderRadius:20,padding:"20px",marginBottom:16,display:"flex",alignItems:"center",gap:16,cursor:"pointer",boxShadow:"0 4px 16px rgba(0,0,0,.15)"}}>
-              <div style={{width:52,height:52,borderRadius:14,background:"rgba(255,255,255,.1)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0}}>🎬</div>
-              <div>
-                <div style={{fontFamily:"'Fredoka One'",fontSize:20,color:"white",marginBottom:2}}>How to Use</div>
-                <div style={{color:"rgba(255,255,255,.5)",fontSize:12,fontWeight:700}}>Watch the quick intro video</div>
-              </div>
-              <div style={{marginLeft:"auto",color:"rgba(255,255,255,.3)",fontSize:22}}>▶</div>
-            </div>
-
-
-            {/* Add vacation task modal */}
-            {showAddVacTask&&(
-              <div className="overlay" onClick={()=>setShowAddVacTask(false)}>
-                <div onClick={e=>e.stopPropagation()} style={{background:"white",borderRadius:28,padding:"28px 22px",maxWidth:340,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.25)",animation:"popIn .25s ease"}}>
-                  <div style={{fontFamily:"'Fredoka One'",fontSize:22,color:"#FF9800",marginBottom:20,textAlign:"center"}}>🌴 Add Adventure</div>
-                  <div style={{marginBottom:14}}>
-                    <div style={{fontSize:11,fontWeight:800,color:"#bbb",letterSpacing:1,marginBottom:8}}>PICK AN ICON</div>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:7}}>
-                      {VACATION_ICONS.map(em=>(
-                        <div key={em} onClick={()=>setNewVacTask(p=>({...p,icon:em}))} style={{width:36,height:36,borderRadius:9,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,background:newVacTask.icon===em?"#FF9800":"#F5F5F5",transition:"all .15s"}}>{em}</div>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{marginBottom:22}}>
-                    <div style={{fontSize:11,fontWeight:800,color:"#bbb",letterSpacing:1,marginBottom:6}}>ACTIVITY NAME</div>
-                    <input value={newVacTask.label} onChange={e=>setNewVacTask(p=>({...p,label:e.target.value}))} placeholder="e.g. Swim in the ocean" maxLength={30} style={{width:"100%",padding:"10px 14px",borderRadius:12,border:"2px solid #FFE0B2",fontFamily:"'Nunito'",fontSize:15,fontWeight:700,outline:"none",boxSizing:"border-box"}}/>
-                  </div>
-                  <div style={{display:"flex",gap:10}}>
-                    <button onClick={()=>setShowAddVacTask(false)} style={{flex:1,padding:12,borderRadius:14,border:"2px solid #eee",background:"white",fontFamily:"'Nunito'",fontWeight:800,fontSize:14,color:"#bbb",cursor:"pointer"}}>Cancel</button>
-                    <button onClick={addVacTask} style={{flex:2,padding:12,borderRadius:14,border:"none",background:newVacTask.label.trim()?"linear-gradient(135deg,#FF9800,#FF5722)":"#EEE",fontFamily:"'Nunito'",fontWeight:800,fontSize:14,color:newVacTask.label.trim()?"white":"#ccc",cursor:newVacTask.label.trim()?"pointer":"not-allowed"}}>Add ✓</button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Vacation Mode Toggle */}
-            <div onClick={toggleVacationMode} style={{
-              background:vacationMode?"linear-gradient(135deg,#FF9800,#FF5722,#E91E63)":"linear-gradient(135deg,#1a1a2e,#16213e)",
-              borderRadius:20,padding:"20px 24px",marginBottom:20,cursor:"pointer",
-              display:"flex",alignItems:"center",justifyContent:"space-between",
-              boxShadow:vacationMode?"0 8px 24px rgba(255,152,0,.4)":"0 4px 16px rgba(0,0,0,.2)",
-              transition:"all .4s",
-            }}>
-              <div>
-                <div style={{fontFamily:"'Fredoka One'",fontSize:22,color:"white",marginBottom:2}}>
-                  {vacationMode?"🌴 Vacation Mode ON":"🏠 Normal Mode"}
-                </div>
-                <div style={{color:"rgba(255,255,255,.6)",fontSize:12,fontWeight:700}}>
-                  {vacationMode?"Tap to go back to school mode":"Tap to start vacation adventures"}
-                </div>
-              </div>
-              <div style={{
-                width:52,height:30,borderRadius:15,padding:"3px",
-                background:vacationMode?"rgba(255,255,255,.3)":"rgba(255,255,255,.1)",
-                display:"flex",alignItems:"center",justifyContent:vacationMode?"flex-end":"flex-start",
-                transition:"all .3s",
-              }}>
-                <div style={{width:24,height:24,borderRadius:12,background:"white",boxShadow:"0 2px 6px rgba(0,0,0,.3)"}}/>
-              </div>
-            </div>
-
-            {/* Vacation task editor */}
-            {vacationMode&&(
-              <div style={{marginBottom:24}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,paddingLeft:4}}>
-                  <div style={{fontFamily:"'Fredoka One'",fontSize:16,color:"#FF9800"}}>🌊 ADVENTURE LIST</div>
-                  <button onClick={()=>setShowAddVacTask(true)} style={{background:"linear-gradient(135deg,#FF9800,#FF5722)",border:"none",borderRadius:12,padding:"8px 14px",fontFamily:"'Nunito'",fontWeight:800,fontSize:13,color:"white",cursor:"pointer"}}>+ Add Adventure</button>
-                </div>
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {vacationTasks.map(task=>(
-                    <div key={task.id} style={{background:"white",borderRadius:16,padding:"14px 16px",boxShadow:"0 2px 12px rgba(255,152,0,.1)",border:"2px solid #FFE0B2",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                      <div style={{display:"flex",alignItems:"center",gap:10}}>
-                        <div style={{width:40,height:40,borderRadius:12,background:"linear-gradient(135deg,#FFF3E0,#FFE0B2)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{task.icon}</div>
-                        <div style={{fontWeight:800,fontSize:14,color:"#333"}}>{task.label}</div>
-                      </div>
-                      <button onClick={()=>deleteVacTask(task.id)} style={{width:30,height:30,borderRadius:8,border:"none",cursor:"pointer",background:"#FFF0F0",color:"#FF6B6B",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
-                    </div>
-                  ))}
-                </div>
-                <div style={{marginTop:12,background:"rgba(255,152,0,.08)",borderRadius:14,padding:"12px 16px",border:"1.5px dashed #FFB74D"}}>
-                  <div style={{fontSize:12,color:"#FF9800",fontWeight:700,textAlign:"center"}}>
-                    ✨ All adventures done = PERFECT DAY explosion!
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {!vacationMode&&(<>
-            <div style={{background:"linear-gradient(135deg,#1a1a2e,#16213e)",borderRadius:20,padding:"20px",marginBottom:20,textAlign:"center"}}>
-              <div style={{fontSize:36,marginBottom:6}}>🔐</div>
-              <div style={{fontFamily:"'Fredoka One'",fontSize:22,color:"white",marginBottom:4}}>Task Manager</div>
-              <div style={{color:"rgba(255,255,255,.5)",fontSize:12,fontWeight:700}}>MANAGE YOUR FAMILY APP</div>
-            </div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:20}}>
-              {kids.map(kid=>{ const tasks=getTasksForKid(kid.id),ec=(data.unlocked?.[kid.id]||[]).length; return (
-                <div key={kid.id} style={{flex:1,minWidth:80,background:"white",borderRadius:16,padding:"14px",textAlign:"center",boxShadow:"0 2px 12px rgba(0,0,0,.06)",border:`2px solid ${kid.light}`}}>
-                  <div style={{fontSize:24,marginBottom:4}}>{kid.emoji}</div>
-                  <div style={{fontFamily:"'Fredoka One'",fontSize:16,color:kid.color}}>{kid.name}</div>
-                  <div style={{fontFamily:"'Fredoka One'",fontSize:26,color:kid.color,lineHeight:1}}>{tasks.length}</div>
-                  <div style={{fontSize:10,color:"#bbb",fontWeight:700}}>TASKS</div>
-                  {ec>0&&<div style={{marginTop:4,background:kid.light,borderRadius:6,padding:"2px 6px",fontSize:10,color:kid.color,fontWeight:800}}>{ec} unlocked</div>}
-                </div>
-              ); })}
-            </div>
-            {/* BASE TASKS — toggle per kid */}
-            <div style={{fontFamily:"'Fredoka One'",fontSize:16,color:"#999",marginBottom:12,paddingLeft:4}}>DAILY TASKS</div>
-            <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:24}}>
-              {BASE_TASKS.map(task=>(
-                <div key={task.id} style={{background:"white",borderRadius:18,padding:"14px 16px",boxShadow:"0 2px 12px rgba(0,0,0,.05)",border:"2px solid #F5F5F5"}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
-                      <div style={{width:42,height:42,borderRadius:12,background:"#F5F5F5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{task.icon}</div>
-                      <div>
-                        <div style={{fontWeight:800,fontSize:14,color:"#333"}}>{task.label}</div>
-                        {task.special&&<div style={{fontSize:11,color:"#C8860A",fontWeight:700}}>Earns money 💰</div>}
-                      </div>
-                    </div>
-                    <div style={{display:"flex",gap:5,flexShrink:0}}>
-                      {kids.map(kid=>{ const off=isBaseDisabled(kid.id,task.id); return (
-                        <button key={kid.id} onClick={()=>toggleBaseTask(kid.id,task.id)} title={`${off?"Enable":"Disable"} for ${kid.name}`} style={{width:36,height:36,borderRadius:9,border:"none",cursor:"pointer",background:off?"#F0F0F0":kid.color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,transition:"all .2s",boxShadow:off?"none":`0 3px 10px ${kid.color}55`,opacity:off?0.5:1}}>
-                          {off?"✕":kid.emoji}
-                        </button>
-                      ); })}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div style={{fontFamily:"'Fredoka One'",fontSize:16,color:"#999",marginBottom:12,paddingLeft:4}}>EXTRA TASK LIBRARY</div>
-            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
-              <button onClick={()=>setShowAddTask(true)} style={{background:"linear-gradient(135deg,#7C5CFC,#FF6B6B)",border:"none",borderRadius:12,padding:"8px 14px",fontFamily:"'Nunito'",fontWeight:800,fontSize:13,color:"white",cursor:"pointer"}}>+ Add Task</button>
-            </div>
-            <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
-              {getAllExtraTasks().map(task=>{ const isC=task.id.startsWith("ct_"); return (
-                <div key={task.id} style={{background:"white",borderRadius:18,padding:"14px 16px",boxShadow:"0 2px 12px rgba(0,0,0,.05)",border:isC?"2px solid #EDE8FF":"2px solid #F5F5F5"}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <div style={{display:"flex",alignItems:"center",gap:10,flex:1,minWidth:0}}>
-                      <div style={{width:42,height:42,borderRadius:12,background:isC?"#EDE8FF":"#F5F5F5",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{task.icon}</div>
-                      <div style={{minWidth:0}}>
-                        <div style={{fontWeight:800,fontSize:14,color:"#333",display:"flex",alignItems:"center",gap:6}}>{task.label}{isC&&<span style={{fontSize:9,background:"#7C5CFC",color:"white",borderRadius:4,padding:"1px 5px",fontWeight:800}}>CUSTOM</span>}</div>
-                        <div style={{fontSize:11,color:"#bbb"}}>{task.hint}</div>
-                      </div>
-                    </div>
-                    <div style={{display:"flex",gap:5,alignItems:"center",flexShrink:0}}>
-                      {kids.map(kid=>{ const on=isUnlocked(kid.id,task.id); return (
-                        <button key={kid.id} onClick={()=>setUnlockConfirm({kidId:kid.id,taskId:task.id})} title={kid.name} style={{width:36,height:36,borderRadius:9,border:"none",cursor:"pointer",background:on?kid.color:"#F0F0F0",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,transition:"all .2s",boxShadow:on?`0 3px 10px ${kid.color}55`:"none"}}>{on?kid.emoji:"🔒"}</button>
-                      ); })}
-                      {isC&&<button onClick={()=>deleteCustomTask(task.id)} style={{width:30,height:30,borderRadius:8,border:"none",cursor:"pointer",background:"#FFF0F0",color:"#FF6B6B",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>}
-                    </div>
-                  </div>
-                </div>
-              ); })}
-            </div>
-            </>)}
-          </div>
-        )}
-
       </div>
       <div style={{height:20}}/>
     </div>
